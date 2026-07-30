@@ -1,0 +1,281 @@
+{
+  "as_of": "2026-07-22T16:22:18+08:00",
+  "disclaimer": "仅供研究参考，不构成投资建议。期权交易风险极高，请自行判断。",
+  "underlyings": [
+    {
+      "symbol": "510050",
+      "name": "上证50ETF",
+      "spot": 3.086,
+      "change_pct": 0.22734654108475713,
+      "expiry": "2026-08-26",
+      "dte": 35,
+      "atm_strike": 3.1,
+      "atm_call_iv": 0.1417,
+      "atm_put_iv": 0.2175,
+      "atm_call_mid": 0.05305,
+      "atm_put_mid": 0.08405,
+      "skew": 0.0758,
+      "chain": [
+        {
+          "strike": 2.8,
+          "call_mid": 0.27654999999999996,
+          "put_mid": 0.00655,
+          "call_iv": null,
+          "put_iv": 0.2235,
+          "call_oi": 3922,
+          "put_oi": 31268
+        },
+        {
+          "strike": 2.85,
+          "call_mid": 0.23065000000000002,
+          "put_mid": 0.00995,
+          "call_iv": null,
+          "put_iv": 0.2156,
+          "call_oi": 5031,
+          "put_oi": 36678
+        },
+        {
+          "strike": 2.9,
+          "call_mid": 0.18675,
+          "put_mid": 0.0156,
+          "call_iv": null,
+          "put_iv": 0.209,
+          "call_oi": 11553,
+          "put_oi": 41081
+        },
+        {
+          "strike": 2.95,
+          "call_mid": 0.14635,
+          "put_mid": 0.025050000000000003,
+          "call_iv": 0.12266377182006835,
+          "put_iv": 0.2079,
+          "call_oi": 21363,
+          "put_oi": 36855
+        },
+        {
+          "strike": 3.0,
+          "call_mid": 0.10755,
+          "put_mid": 0.0392,
+          "call_iv": 0.1079,
+          "put_iv": 0.2089,
+          "call_oi": 58184,
+          "put_oi": 70833
+        },
+        {
+          "strike": 3.1,
+          "call_mid": 0.05305,
+          "put_mid": 0.08405,
+          "call_iv": 0.1417,
+          "put_iv": 0.2175,
+          "call_oi": 92986,
+          "put_oi": 45495
+        },
+        {
+          "strike": 3.2,
+          "call_mid": 0.0232,
+          "put_mid": 0.15315,
+          "call_iv": 0.1569,
+          "put_iv": 0.2421,
+          "call_oi": 71888,
+          "put_oi": 10628
+        },
+        {
+          "strike": 3.3,
+          "call_mid": 0.011349999999999999,
+          "put_mid": 0.23909999999999998,
+          "call_iv": 0.1791,
+          "put_iv": 0.2733,
+          "call_oi": 44767,
+          "put_oi": 2510
+        },
+        {
+          "strike": 3.4,
+          "call_mid": 0.005849999999999999,
+          "put_mid": 0.3335,
+          "call_iv": 0.2006,
+          "put_iv": 0.3085,
+          "call_oi": 20122,
+          "put_oi": 1335
+        },
+        {
+          "strike": 3.5,
+          "call_mid": 0.0038,
+          "put_mid": 0.43165,
+          "call_iv": 0.2253,
+          "put_iv": 0.3621,
+          "call_oi": 22931,
+          "put_oi": 3176
+        }
+      ],
+      "hints": [
+        {
+          "title": "中性/偏涨：认购垂直价差",
+          "bias": "mild_bull",
+          "reason": "Put IV 高于 Call（skew=7.6%），下行溢价偏贵；买入 ATM 认购、卖出更高行权认购，约净支出 0.0299。",
+          "legs": [
+            {
+              "action": "buy",
+              "cp": "C",
+              "strike": 3.1,
+              "mid": 0.05305
+            },
+            {
+              "action": "sell",
+              "cp": "C",
+              "strike": 3.2,
+              "mid": 0.0232
+            }
+          ]
+        },
+        {
+          "title": "偏度提示",
+          "bias": "skew",
+          "reason": "ATM Put−Call IV = 7.6%；下行保护需求偏强（Put IV 更高）。",
+          "legs": []
+        }
+      ]
+    },
+    {
+      "symbol": "510300",
+      "name": "沪深300ETF",
+      "spot": 4.765,
+      "change_pct": -0.45957802381450263,
+      "expiry": "2026-08-26",
+      "dte": 35,
+      "atm_strike": 4.8,
+      "atm_call_iv": 0.1596,
+      "atm_put_iv": 0.228,
+      "atm_call_mid": 0.0859,
+      "atm_put_mid": 0.14285,
+      "skew": 0.06840000000000002,
+      "chain": [
+        {
+          "strike": 4.3,
+          "call_mid": 0.45430000000000004,
+          "put_mid": 0.01225,
+          "call_iv": null,
+          "put_iv": 0.2438,
+          "call_oi": 2166,
+          "put_oi": 17754
+        },
+        {
+          "strike": 4.4,
+          "call_mid": 0.3668,
+          "put_mid": 0.02045,
+          "call_iv": null,
+          "put_iv": 0.2338,
+          "call_oi": 2880,
+          "put_oi": 19028
+        },
+        {
+          "strike": 4.5,
+          "call_mid": 0.28,
+          "put_mid": 0.0344,
+          "call_iv": 0.14166058425903322,
+          "put_iv": 0.2272,
+          "call_oi": 7723,
+          "put_oi": 29414
+        },
+        {
+          "strike": 4.6,
+          "call_mid": 0.19915,
+          "put_mid": 0.05585,
+          "call_iv": 0.1295,
+          "put_iv": 0.22,
+          "call_oi": 21216,
+          "put_oi": 41855
+        },
+        {
+          "strike": 4.7,
+          "call_mid": 0.13395,
+          "put_mid": 0.09045,
+          "call_iv": 0.1496,
+          "put_iv": 0.2182,
+          "call_oi": 37891,
+          "put_oi": 52628
+        },
+        {
+          "strike": 4.8,
+          "call_mid": 0.0859,
+          "put_mid": 0.14285,
+          "call_iv": 0.1596,
+          "put_iv": 0.228,
+          "call_oi": 60023,
+          "put_oi": 48044
+        },
+        {
+          "strike": 4.9,
+          "call_mid": 0.05245,
+          "put_mid": 0.2081,
+          "call_iv": 0.168,
+          "put_iv": 0.2394,
+          "call_oi": 47962,
+          "put_oi": 16742
+        },
+        {
+          "strike": 5.0,
+          "call_mid": 0.03125,
+          "put_mid": 0.2841,
+          "call_iv": 0.176,
+          "put_iv": 0.2608,
+          "call_oi": 57641,
+          "put_oi": 11329
+        },
+        {
+          "strike": 5.25,
+          "call_mid": 0.00995,
+          "put_mid": 0.51415,
+          "call_iv": 0.2044,
+          "put_iv": 0.3296,
+          "call_oi": 37203,
+          "put_oi": 3279
+        },
+        {
+          "strike": 5.5,
+          "call_mid": 0.00465,
+          "put_mid": 0.7593,
+          "call_iv": 0.2415,
+          "put_iv": 0.4099,
+          "call_oi": 17507,
+          "put_oi": 713
+        },
+        {
+          "strike": 5.75,
+          "call_mid": 0.0030499999999999998,
+          "put_mid": 1.0069,
+          "call_iv": 0.2851,
+          "put_iv": 0.4916,
+          "call_oi": 13428,
+          "put_oi": 1234
+        }
+      ],
+      "hints": [
+        {
+          "title": "中性/偏涨：认购垂直价差",
+          "bias": "mild_bull",
+          "reason": "Put IV 高于 Call（skew=6.8%），下行溢价偏贵；买入 ATM 认购、卖出更高行权认购，约净支出 0.0335。",
+          "legs": [
+            {
+              "action": "buy",
+              "cp": "C",
+              "strike": 4.8,
+              "mid": 0.0859
+            },
+            {
+              "action": "sell",
+              "cp": "C",
+              "strike": 4.9,
+              "mid": 0.05245
+            }
+          ]
+        },
+        {
+          "title": "偏度提示",
+          "bias": "skew",
+          "reason": "ATM Put−Call IV = 6.8%；下行保护需求偏强（Put IV 更高）。",
+          "legs": []
+        }
+      ]
+    }
+  ]
+}

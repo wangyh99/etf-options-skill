@@ -1,0 +1,3 @@
+# Optional: richer DataFrame workflows. Pipeline runs on Python stdlib only.
+# akshare>=1.14.0
+# pandas>=2.0.0
