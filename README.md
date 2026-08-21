@@ -4,11 +4,22 @@
 
 ## 快速开始
 
+日报（期权链 + 策略提示）：
+
 ```bash
 python3 scripts/run_daily.py
 ```
 
-产出：
+**即时卖出宽跨建议**（周线 MACD/KDJ/RSI/BOLL → 月波动区间再扩 ±2% → 约30天到期、权利金/保证金>1.5%）：
+
+```bash
+python3 scripts/advise_short_strangle.py
+python3 -m unittest discover -s tests -v
+```
+
+产出 `data/short_strangle_advice.json`。保证金按上交所宽跨式空头组合（KKS）公式估算。
+
+日报产出：
 
 - `data/latest_report.json` — 完整日报
 - `data/canvas_payload.json` — Canvas 嵌入用精简数据

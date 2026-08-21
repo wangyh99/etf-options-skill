@@ -3,5 +3,6 @@ __pycache__/
 .venv/
 venv/
 data/chains/
+data/short_strangle_advice.json
 .DS_Store
 *.egg-info/

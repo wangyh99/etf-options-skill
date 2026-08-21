@@ -218,6 +218,31 @@ def pick_nearest_month(cate: str, months: list[str], prefer_positive_dte: bool =
     return min(infos, key=lambda x: (x["dte"] < 0, abs(x["dte"])))
 
 
+def pick_month_near_dte(
+    infos: list[dict[str, Any]],
+    target_dte: int = 30,
+    min_dte: int = 15,
+) -> dict[str, Any]:
+    """Pick the expiry whose DTE is closest to target (default ~30 days)."""
+    if not infos:
+        raise ValueError("no expiry infos")
+    eligible = [x for x in infos if x["dte"] >= min_dte]
+    if not eligible:
+        eligible = [x for x in infos if x["dte"] > 0]
+    if not eligible:
+        eligible = infos
+    return min(eligible, key=lambda x: abs(int(x["dte"]) - target_dte))
+
+
+def list_month_infos(cate: str) -> list[dict[str, Any]]:
+    months = list_months(cate)
+    infos = []
+    for m in months:
+        expiry, dte = expire_info(cate, m)
+        infos.append({"month": m, "expiry": expiry, "dte": dte})
+    return infos
+
+
 def enrich_iv(row: dict[str, Any], spot: float, dte: int, greeks: dict[str, Any]) -> None:
     row["iv_sina"] = greeks.get("iv")
     row["delta"] = greeks.get("delta")

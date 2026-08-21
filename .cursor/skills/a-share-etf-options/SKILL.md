@@ -60,6 +60,7 @@ Use fields already computed in the report (`hints[]`). Do not invent new trade i
 ## Files
 
 - Pipeline: [scripts/run_daily.py](../../../scripts/run_daily.py)
+- Short-strangle advice: [scripts/advise_short_strangle.py](../../../scripts/advise_short_strangle.py)
 - Fetch: [scripts/fetch_option_chain.py](../../../scripts/fetch_option_chain.py)
 - Strategy: [scripts/strategy_hints.py](../../../scripts/strategy_hints.py)
 - Automation prompt: [automations/daily-etf-options.md](../../../automations/daily-etf-options.md)
