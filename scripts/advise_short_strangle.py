@@ -11,10 +11,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import ssl
 import sys
-import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -29,50 +27,12 @@ from fetch_option_chain import (  # noqa: E402
 )
 from indicators import forecast_month_range  # noqa: E402
 from margin import meets_yield, short_strangle_combo_margin  # noqa: E402
+from weekly_bars import load_weekly_3y  # noqa: E402
 
-UA = "Mozilla/5.0"
-CTX = ssl._create_unverified_context()
 MIN_YIELD = 0.015
 RANGE_PAD = 0.02
 TARGET_DTE = 30
 DISCLAIMER = "仅供研究参考，不构成投资建议。保证金为上交所组合策略估算，券商可能上浮。"
-
-
-def fetch_weekly_em(secid: str, limit: int = 200) -> list[dict]:
-    url = (
-        f"https://push2his.eastmoney.com/api/qt/stock/kline/get?"
-        f"secid={secid}&fields1=f1,f2,f3,f4,f5,f6"
-        f"&fields2=f51,f52,f53,f54,f55,f56,f57,f58"
-        f"&klt=102&fqt=1&end=20500101&lmt={limit}"
-    )
-    req = urllib.request.Request(
-        url, headers={"User-Agent": UA, "Referer": "https://finance.eastmoney.com/"}
-    )
-    with urllib.request.urlopen(req, timeout=30, context=CTX) as resp:
-        raw = json.loads(resp.read().decode("utf-8"))
-    kl = (raw.get("data") or {}).get("klines") or []
-    rows = []
-    for line in kl:
-        p = line.split(",")
-        rows.append(
-            {
-                "date": p[0],
-                "open": float(p[1]),
-                "close": float(p[2]),
-                "high": float(p[3]),
-                "low": float(p[4]),
-            }
-        )
-    return rows
-
-
-def load_weekly_3y(secid: str) -> list[dict]:
-    bars = fetch_weekly_em(secid, 180)
-    cutoff = (datetime.now() - timedelta(days=365 * 3 + 14)).strftime("%Y-%m-%d")
-    bars = [b for b in bars if b["date"] >= cutoff]
-    if len(bars) < 80:
-        raise RuntimeError(f"{secid}: not enough weekly bars ({len(bars)})")
-    return bars
 
 
 def _leg_mid(leg: dict | None) -> float | None:
@@ -201,7 +161,7 @@ def _round_forecast(fc: dict) -> dict:
 
 def advise_symbol(symbol: str, target_dte: int = TARGET_DTE, min_yield: float = MIN_YIELD) -> dict[str, Any]:
     meta = SYMBOL_META[symbol]
-    bars = load_weekly_3y({"510050": "1.510050", "510300": "1.510300"}[symbol])
+    bars, weekly_source = load_weekly_3y({"510050": "1.510050", "510300": "1.510300"}[symbol])
     fc = forecast_month_range(
         [b["close"] for b in bars],
         [b["high"] for b in bars],
@@ -222,6 +182,7 @@ def advise_symbol(symbol: str, target_dte: int = TARGET_DTE, min_yield: float = 
         "weekly_from": bars[0]["date"],
         "weekly_to": bars[-1]["date"],
         "weekly_n": len(bars),
+        "weekly_source": weekly_source,
         "forecast": _round_forecast(fc),
         "expiry": snap["expiry"],
         "month": snap["month"],
@@ -233,50 +194,85 @@ def advise_symbol(symbol: str, target_dte: int = TARGET_DTE, min_yield: float = 
     }
 
 
+def _md_cell(v) -> str:
+    if v is None:
+        return "—"
+    return str(v).replace("|", "\\|")
+
+
 def format_report(report: dict) -> str:
+    pad = report.get("range_pad", RANGE_PAD)
+    dte = report.get("target_dte", TARGET_DTE)
+    min_y = report.get("min_yield", MIN_YIELD)
     lines = [
-        f"卖出宽跨建议  {report['as_of']}",
-        f"规则：周线 MACD/KDJ/RSI/BOLL → 月区间再扩 ±{RANGE_PAD*100:.0f}%；"
-        f"约{TARGET_DTE}天到期；权利金/保证金 > {MIN_YIELD*100:.1f}%",
+        "# 卖出宽跨建议",
+        "",
+        f"- **时间**：{report['as_of']}",
+        f"- **规则**：周线 MACD / KDJ / RSI / BOLL，历史 4 周幅度用 P80 → 月区间再扩 ±{pad * 100:.0f}%",
+        f"- **合约**：DTE 约 {dte} 天；权利金 / 保证金 > {min_y * 100:.1f}%",
         "",
     ]
     if report.get("errors"):
-        lines.append("抓取失败：")
+        lines.extend(["## 抓取失败", ""])
         for e in report["errors"]:
-            lines.append(f"  {e['symbol']}: {e['error']}")
+            lines.append(f"- `{e['symbol']}`：{e['error']}")
         lines.append("")
     for u in report["underlyings"]:
         f = u["forecast"]
         pr, tr = f["predicted_range"], f["trade_range"]
-        lines.append(f"=== {u['name']} ({u['symbol']}) 现价 {u['spot']} ===")
-        lines.append(
-            f"周线 {u['weekly_from']}→{u['weekly_to']}  趋势 {f['trend']}  "
-            f"MACD {f['macd']['signal']}  RSI {f['rsi14']}({f['rsi_zone']})  "
-            f"KDJ {f['kdj']['zone']}  BOLL%B {f['boll'].get('pct_b')}"
+        lines.extend(
+            [
+                f"## {u['name']}（{u['symbol']}）",
+                "",
+                f"**现价** {u['spot']} · **到期** {u['expiry']} · **DTE** {u['dte']}",
+                "",
+                "| 项目 | 值 |",
+                "| --- | --- |",
+                f"| 周线样本 | {u['weekly_from']} → {u['weekly_to']}（{u['weekly_n']} 根，{u.get('weekly_source') or '—'}） |",
+                f"| 趋势 | {_md_cell(f['trend'])} |",
+                f"| MACD | {_md_cell(f['macd']['signal'])} |",
+                f"| RSI | {_md_cell(f['rsi14'])}（{f['rsi_zone']}） |",
+                f"| KDJ | {_md_cell(f['kdj']['zone'])} |",
+                f"| BOLL %B | {_md_cell(f['boll'].get('pct_b'))} |",
+                f"| 预测月区间 | {pr['lo']} – {pr['hi']} |",
+                f"| 交易带（扩 2%） | {tr['lo']} – {tr['hi']} |",
+                "",
+            ]
         )
-        lines.append(
-            f"预测月区间 {pr['lo']}–{pr['hi']}  → 交易带(扩2%) {tr['lo']}–{tr['hi']}"
-        )
-        lines.append(f"合约 {u['expiry']}  DTE {u['dte']}  候选 {len(u['candidates'])} 个")
         rec = u.get("recommended")
         if rec:
-            lines.append(
-                f"建议：卖出 {rec['put_name']} + {rec['call_name']}  "
-                f"权利金 {rec['premium_1lot']:.0f}元 / 保证金 {rec['margin_1lot']:.0f}元  "
-                f"收益率 {rec['yield_pct']:.2f}%  BE {rec['be_dn']}–{rec['be_up']}"
+            lines.extend(
+                [
+                    "### 建议",
+                    "",
+                    f"卖出 **{rec['put_name']}** + **{rec['call_name']}**",
+                    "",
+                    f"- 权利金：{rec['premium_1lot']:.0f} 元 / 张组合",
+                    f"- 保证金：{rec['margin_1lot']:.0f} 元（KKS 估算）",
+                    f"- 收益率：**{rec['yield_pct']:.2f}%**",
+                    f"- 盈亏平衡：{rec['be_dn']} – {rec['be_up']}",
+                    "",
+                ]
             )
         else:
-            lines.append(f"建议：{u['action']}")
+            lines.extend(["### 建议", "", f"{u['action']}", ""])
         if u["candidates"]:
-            lines.append("达标档位（收益率降序，最多5档）：")
-            for c in u["candidates"][:5]:
+            lines.extend(
+                [
+                    "### 达标档位（收益率降序）",
+                    "",
+                    "| 结构 | 权利金 | 保证金 | 收益率 | 盈亏平衡 |",
+                    "| --- | ---: | ---: | ---: | --- |",
+                ]
+            )
+            for c in u["candidates"][:8]:
                 lines.append(
-                    f"  沽{c['put_k']}/购{c['call_k']}  "
-                    f"权利金{c['premium_1lot']:.0f}  保证金{c['margin_1lot']:.0f}  "
-                    f"收益{c['yield_pct']:.2f}%"
+                    f"| 沽{c['put_k']}/购{c['call_k']} | "
+                    f"{c['premium_1lot']:.0f} | {c['margin_1lot']:.0f} | "
+                    f"{c['yield_pct']:.2f}% | {c['be_dn']}–{c['be_up']} |"
                 )
-        lines.append("")
-    lines.append(DISCLAIMER)
+            lines.append("")
+    lines.extend(["---", "", DISCLAIMER, ""])
     return "\n".join(lines)
 
 
@@ -306,16 +302,28 @@ def main() -> int:
     parser.add_argument("--min-yield", type=float, default=MIN_YIELD)
     parser.add_argument(
         "--out",
-        default=str(ROOT / "data" / "short_strangle_advice.json"),
+        default=str(ROOT / "data" / "short_strangle_advice.md"),
+        help="Markdown 输出路径",
+    )
+    parser.add_argument(
+        "--json",
+        default=None,
+        help="可选：同时写入 JSON（便于程序读取）",
     )
     args = parser.parse_args()
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
     report = run(symbols, args.dte, args.min_yield)
+    md = format_report(report)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(format_report(report))
+    out.write_text(md, encoding="utf-8")
+    print(md)
     print(f"\nwrote {out}", file=sys.stderr)
+    if args.json:
+        jp = Path(args.json)
+        jp.parent.mkdir(parents=True, exist_ok=True)
+        jp.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"wrote {jp}", file=sys.stderr)
     if report["errors"] and not report["underlyings"]:
         return 1
     return 0

@@ -8,12 +8,12 @@
 
 | 功能 | 脚本 | 说明 |
 |------|------|------|
-| **卖出宽跨即时建议** | `scripts/advise_short_strangle.py` | 周线 MACD / KDJ / RSI / BOLL 预测月区间，上下再扩 2%；扫描约 30 天到期期权；只保留权利金/保证金 > 1.5% 的档位 |
+| **卖出宽跨即时建议** | `scripts/advise_short_strangle.py` | 周线 MACD / KDJ / RSI / BOLL，历史 4 周 **P80** 定月区间，再扩 ±2%；约 30 天到期；权利金/保证金 > 1.5% |
 | **期权日报** | `scripts/run_daily.py` | 拉取近月期权链、ATM IV、偏度，并按规则提示跨式 / 垂直价差 |
 | **周线区间测算** | `scripts/weekly_tech_forecast.py` | 单独输出周线指标与月波动带（供对照） |
 | **期权链拉取** | `scripts/fetch_option_chain.py` | 新浪财经公开接口：标的价、到期月、各档认购/认沽 mid 与 IV |
 
-数据源：东方财富（周线）、新浪财经（期权与标的行情）。
+数据源：腾讯财经周线（主，东方财富周线目前会直接断连）、新浪财经日线回退、新浪期权与标的行情。
 
 ## 环境
 
@@ -42,11 +42,12 @@ python3 scripts/advise_short_strangle.py --symbols 510050,510300 --dte 30 --min-
 | `--symbols` | `510050,510300` | 标的代码，逗号分隔 |
 | `--dte` | `30` | 目标剩余天数，自动选最接近的到期月（跳过过短合约） |
 | `--min-yield` | `0.015` | 最低收益率：权利金 / 组合保证金 |
-| `--out` | `data/short_strangle_advice.json` | JSON 输出路径 |
+| `--out` | `data/short_strangle_advice.md` | Markdown 输出路径 |
+| `--json` | 无 | 可选，同时再写一份 JSON |
 
 ### 计算逻辑
 
-1. 取标的近 **3 年周线**，计算 MACD、KDJ（JDK）、RSI、BOLL，并结合历史 4 周涨跌分位、周波动折算月 σ，得到**预测月区间**。
+1. 取标的近 **3 年周线**，计算 MACD、KDJ（JDK）、RSI、BOLL，并结合历史 4 周涨跌 **P80** 分位、周波动折算月 σ，得到**预测月区间**。
 2. 在该区间上 **上下各扩大 2%**，作为交易带（卖出认沽行权价 ≤ 下沿，卖出认购行权价 ≥ 上沿）。
 3. 选取 DTE 最接近 30 天的合约月，扫描交易带外的全部宽跨组合。
 4. 保证金按上交所 **宽跨式空头（KKS）** 估算：  
@@ -54,7 +55,7 @@ python3 scripts/advise_short_strangle.py --symbols 510050,510300 --dte 30 --min-
    合约单位 10000。券商可能在交易所标准上上浮。
 5. 只输出 **权利金 / 保证金 > 1.5%** 的组合，按收益率排序并给出一条主建议；若无达标档位则提示观望。
 
-终端会打印摘要，完整结果在 `data/short_strangle_advice.json`。
+终端打印 Markdown，并写入 `data/short_strangle_advice.md`。需要机器可读结果时加 `--json data/short_strangle_advice.json`。
 
 ## 期权日报
 

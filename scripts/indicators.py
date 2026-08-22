@@ -200,12 +200,17 @@ def expand_range(lo: float, hi: float, pad: float = 0.02) -> tuple[float, float]
     return lo * (1 - pad), hi * (1 + pad)
 
 
+# Historical 4-week one-sided move quantile used for the predicted band.
+HIST_RANGE_Q = 0.80
+
+
 def forecast_month_range(
     closes: list[float],
     highs: list[float],
     lows: list[float],
+    hist_q: float = HIST_RANGE_Q,
 ) -> dict:
-    """Blend 3y weekly hist 4-week range, vol, MACD/RSI/KDJ/BOLL into a 1-month band."""
+    """Blend 3y weekly hist 4-week range (default P80), vol, MACD/RSI/KDJ/BOLL into a 1-month band."""
     if len(closes) < 80:
         raise ValueError(f"need >=80 weekly bars, got {len(closes)}")
 
@@ -231,7 +236,7 @@ def forecast_month_range(
         fwd_dn.append((closes[i] - lo) / closes[i] * 100)
         fwd_rng.append((hi - lo) / closes[i] * 100)
 
-    up60, dn60 = quantile(fwd_up, 0.60), quantile(fwd_dn, 0.60)
+    up_q, dn_q = quantile(fwd_up, hist_q), quantile(fwd_dn, hist_q)
     up80, dn80 = quantile(fwd_up, 0.80), quantile(fwd_dn, 0.80)
 
     i = -1
@@ -259,8 +264,8 @@ def forecast_month_range(
     if bl.get("width_pct"):
         boll_half = bl["width_pct"] / 2 * math.sqrt(4 / 20)
 
-    dn_use = max(dn60 or 0, m1_sigma * 0.85, boll_half * 0.8)
-    up_use = max(up60 or 0, m1_sigma * 0.85, boll_half * 0.8)
+    dn_use = max(dn_q or 0, m1_sigma * 0.85, boll_half * 0.8)
+    up_use = max(up_q or 0, m1_sigma * 0.85, boll_half * 0.8)
     likely_lo = spot * (1 - dn_use / 100)
     likely_hi = spot * (1 + up_use / 100)
     midp = (likely_lo + likely_hi) / 2 * (1 + bias / 100)
@@ -283,11 +288,12 @@ def forecast_month_range(
         "month_1sigma_pct": m1_sigma,
         "hist_4w": {
             "n": len(fwd_up),
-            "up_p60": up60,
-            "dn_p60": dn60,
+            "hist_q": hist_q,
+            "up_q": up_q,
+            "dn_q": dn_q,
             "up_p80": up80,
             "dn_p80": dn80,
-            "range_p60": quantile(fwd_rng, 0.6),
+            "range_p80": quantile(fwd_rng, 0.8),
         },
         "predicted_range": {"lo": likely_lo, "hi": likely_hi},
         "trade_range": {"lo": exp_lo, "hi": exp_hi, "pad": 0.02},

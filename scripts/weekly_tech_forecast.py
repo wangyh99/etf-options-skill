@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from fetch_option_chain import fetch_chain  # noqa: E402
+from weekly_bars import load_weekly_3y  # noqa: E402
 
 UA = "Mozilla/5.0"
 CTX = ssl._create_unverified_context()
@@ -152,11 +153,7 @@ def mid(leg):
 
 
 def analyze_weekly(code: str, name: str, secid: str) -> dict:
-    bars = fetch_weekly_em(secid, 180)
-    cutoff = (datetime.now() - timedelta(days=365 * 3 + 14)).strftime("%Y-%m-%d")
-    bars = [b for b in bars if b["date"] >= cutoff]
-    if len(bars) < 80:
-        raise RuntimeError(f"{code}: not enough weekly bars ({len(bars)})")
+    bars, _src = load_weekly_3y(secid)
 
     closes = [b["close"] for b in bars]
     highs = [b["high"] for b in bars]
@@ -237,8 +234,8 @@ def analyze_weekly(code: str, name: str, secid: str) -> dict:
         bias = -0.35
 
     # blend hist percentile with vol sigma
-    dn_use = max(dn60 or 0, m1_sigma * 0.85)
-    up_use = max(up60 or 0, m1_sigma * 0.85)
+    dn_use = max(dn80 or 0, m1_sigma * 0.85)
+    up_use = max(up80 or 0, m1_sigma * 0.85)
     likely_lo = spot * (1 - dn_use / 100)
     likely_hi = spot * (1 + up_use / 100)
     midp = (likely_lo + likely_hi) / 2 * (1 + bias / 100)
