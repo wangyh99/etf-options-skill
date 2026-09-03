@@ -15,7 +15,7 @@ description: >-
 |------|--------|
 | Underlyings | `510050` (上证50ETF), `510300` (沪深300ETF) |
 | Data source | Sina Finance public APIs via `scripts/fetch_option_chain.py` (stdlib; akshare optional) |
-| Strategies | ATM straddle/strangle hints, IV skew (put vs call), vertical debit/credit spreads near ATM |
+| Strategies | Iron condor (1.5%–2.2% yield band), ATM straddle/strangle hints, IV skew, vertical spreads |
 | Delivery | Run scripts → write `data/latest_report.json` + `data/canvas_payload.json` → render Canvas + short chat summary |
 | Schedule | Trading-day cron via Cursor Automation (weekdays 15:10) or `scripts/cron_local.sh` |
 
@@ -60,7 +60,7 @@ Use fields already computed in the report (`hints[]`). Do not invent new trade i
 ## Files
 
 - Pipeline: [scripts/run_daily.py](../../../scripts/run_daily.py)
-- Short-strangle advice: [scripts/advise_short_strangle.py](../../../scripts/advise_short_strangle.py)
+- Iron-condor advice: [scripts/advise_short_strangle.py](../../../scripts/advise_short_strangle.py)
 - Fetch: [scripts/fetch_option_chain.py](../../../scripts/fetch_option_chain.py)
 - Strategy: [scripts/strategy_hints.py](../../../scripts/strategy_hints.py)
 - Automation prompt: [automations/daily-etf-options.md](../../../automations/daily-etf-options.md)

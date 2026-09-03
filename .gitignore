@@ -4,5 +4,8 @@ __pycache__/
 venv/
 data/chains/
 data/short_strangle_advice.json
+data/short_strangle_advice.md
+data/iron_condor_advice.json
+data/iron_condor_advice.md
 .DS_Store
 *.egg-info/

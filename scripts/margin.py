@@ -64,3 +64,44 @@ def short_strangle_combo_margin(
 
 def meets_yield(yield_pct: float, min_yield: float = 0.015) -> bool:
     return yield_pct > min_yield
+
+
+def meets_yield_band(yield_pct: float, min_yield: float = 0.015, max_yield: float = 0.022) -> bool:
+    return min_yield <= yield_pct <= max_yield
+
+
+def iron_condor_margin(
+    short_put_k: float,
+    long_put_k: float,
+    short_call_k: float,
+    long_call_k: float,
+    short_put_prem: float,
+    long_put_prem: float,
+    short_call_prem: float,
+    long_call_prem: float,
+    multiplier: int = CONTRACT_MULT,
+) -> dict:
+    """
+    铁鹰 = 认沽牛市价差 + 认购熊市价差。
+    上交所两组合分别收保证金：行权价差 × 合约单位，合计为两侧宽度之和。
+    到期最多一边穿仓，经济最大亏损 = max(两侧宽度)×乘数 − 净权利金。
+    """
+    if not (long_put_k < short_put_k < short_call_k < long_call_k):
+        raise ValueError("iron condor strikes must be long_put < short_put < short_call < long_call")
+    put_width = short_put_k - long_put_k
+    call_width = long_call_k - short_call_k
+    credit = short_put_prem + short_call_prem - long_put_prem - long_call_prem
+    if credit <= 0:
+        raise ValueError("iron condor net credit must be positive")
+    premium = credit * multiplier
+    margin = (put_width + call_width) * multiplier
+    max_loss = max(put_width, call_width) * multiplier - premium
+    yld = premium / margin if margin > 0 else 0.0
+    return {
+        "put_width": put_width,
+        "call_width": call_width,
+        "margin": margin,
+        "premium": premium,
+        "max_loss": max_loss,
+        "yield": yld,
+    }

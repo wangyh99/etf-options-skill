@@ -10,7 +10,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from margin import (  # noqa: E402
     call_short_margin,
+    iron_condor_margin,
     meets_yield,
+    meets_yield_band,
     put_short_margin,
     short_strangle_combo_margin,
 )
@@ -63,6 +65,29 @@ class TestComboAndYield(unittest.TestCase):
     def test_strangle_requires_call_above_put(self):
         with self.assertRaises(ValueError):
             short_strangle_combo_margin(0.01, 0.01, 3.0, 2.8, 3.2)
+
+
+class TestIronCondor(unittest.TestCase):
+    def test_sum_of_widths_and_max_loss(self):
+        out = iron_condor_margin(2.75, 2.65, 3.30, 3.50, 0.015, 0.006, 0.008, 0.003)
+        self.assertAlmostEqual(out["put_width"], 0.10)
+        self.assertAlmostEqual(out["call_width"], 0.20)
+        self.assertAlmostEqual(out["premium"], 0.014 * 10000)
+        self.assertAlmostEqual(out["margin"], 0.30 * 10000)
+        self.assertAlmostEqual(out["max_loss"], 0.20 * 10000 - 140)
+        self.assertAlmostEqual(out["yield"], 140 / 3000)
+
+    def test_rejects_debit_or_bad_order(self):
+        with self.assertRaises(ValueError):
+            iron_condor_margin(2.75, 2.85, 3.30, 3.50, 0.01, 0.01, 0.01, 0.01)
+        with self.assertRaises(ValueError):
+            iron_condor_margin(2.75, 2.65, 3.30, 3.50, 0.01, 0.02, 0.01, 0.02)
+
+    def test_yield_band(self):
+        self.assertTrue(meets_yield_band(0.015, 0.015, 0.022))
+        self.assertTrue(meets_yield_band(0.022, 0.015, 0.022))
+        self.assertFalse(meets_yield_band(0.0149, 0.015, 0.022))
+        self.assertFalse(meets_yield_band(0.023, 0.015, 0.022))
 
 
 if __name__ == "__main__":

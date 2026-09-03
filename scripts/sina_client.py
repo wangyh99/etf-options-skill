@@ -1,10 +1,12 @@
-"""Sina Finance HTTP helpers for SSE ETF options (stdlib only)."""
+"""HTTP helpers for public market quotes (stdlib only)."""
 
 from __future__ import annotations
 
+import http.client
 import json
 import re
 import ssl
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -32,23 +34,42 @@ def _ssl_contexts() -> list[ssl.SSLContext]:
     return contexts
 
 
-def http_get(url: str, *, referer: str = REFERER, timeout: float = 20.0) -> bytes:
+def http_get(
+    url: str,
+    *,
+    referer: str = REFERER,
+    timeout: float = 20.0,
+    retries: int = 3,
+) -> bytes:
     req = urllib.request.Request(
         url,
         headers={
             "User-Agent": UA,
             "Referer": referer,
             "Accept": "*/*",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Connection": "close",
         },
     )
     last_err: Exception | None = None
-    for ctx in _ssl_contexts():
-        try:
-            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-                return resp.read()
-        except (urllib.error.URLError, ssl.SSLError) as exc:
-            last_err = exc
-            continue
+    transient = (
+        urllib.error.URLError,
+        ssl.SSLError,
+        TimeoutError,
+        http.client.RemoteDisconnected,
+        http.client.IncompleteRead,
+        ConnectionResetError,
+        BrokenPipeError,
+    )
+    for attempt in range(retries):
+        for ctx in _ssl_contexts():
+            try:
+                with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+                    return resp.read()
+            except transient as exc:
+                last_err = exc
+                continue
+        time.sleep(0.4 * (attempt + 1))
     assert last_err is not None
     raise last_err
 
