@@ -67,7 +67,44 @@ def meets_yield(yield_pct: float, min_yield: float = 0.015) -> bool:
 
 
 def meets_yield_band(yield_pct: float, min_yield: float = 0.015, max_yield: float = 0.022) -> bool:
-    return min_yield <= yield_pct <= max_yield
+    epsilon = 1e-12
+    return min_yield - epsilon <= yield_pct <= max_yield + epsilon
+
+
+def short_strangle_risk_profile(
+    call_premium: float,
+    put_premium: float,
+    spot: float,
+    call_strike: float,
+    put_strike: float,
+    multiplier: int = CONTRACT_MULT,
+    scenario_moves: tuple[float, ...] = (-0.20, -0.10, 0.10, 0.20),
+) -> dict:
+    """Risk disclosure for an uncovered short strangle; upside loss is unbounded."""
+    margin = short_strangle_combo_margin(
+        call_premium, put_premium, spot, call_strike, put_strike, multiplier
+    )
+    credit = call_premium + put_premium
+
+    def pnl(at_spot: float) -> float:
+        intrinsic = max(put_strike - at_spot, 0.0) + max(at_spot - call_strike, 0.0)
+        return (credit - intrinsic) * multiplier
+
+    return {
+        **margin,
+        "max_profit": credit * multiplier,
+        "max_loss": None,
+        "max_loss_label": "理论无限（认购侧）",
+        "put_side_loss_at_zero": max(put_strike - credit, 0.0) * multiplier,
+        "scenarios": [
+            {
+                "move_pct": move * 100,
+                "spot": spot * (1 + move),
+                "pnl": pnl(max(spot * (1 + move), 0.0)),
+            }
+            for move in scenario_moves
+        ],
+    }
 
 
 def iron_condor_margin(

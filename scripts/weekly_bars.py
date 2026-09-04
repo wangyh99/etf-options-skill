@@ -12,6 +12,9 @@ from sina_client import http_get_json, http_get_text
 _TENCENT_WEEK = (
     "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={symbol},week,,,{limit},qfq"
 )
+_TENCENT_DAY = (
+    "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={symbol},day,,,{limit},qfq"
+)
 _SINA_DAILY = (
     "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/"
     "CN_MarketData.getKLineData?symbol={symbol}&scale=240&ma=no&datalen={limit}"
@@ -47,6 +50,22 @@ def parse_tencent_week(payload: dict[str, Any], hq: str) -> list[dict]:
             }
         )
     return out
+
+
+def parse_tencent_daily(payload: dict[str, Any], hq: str) -> list[dict]:
+    node = (payload.get("data") or {}).get(hq) or {}
+    rows = node.get("qfqday") or node.get("day") or []
+    return [
+        {
+            "date": str(r[0])[:10],
+            "open": float(r[1]),
+            "close": float(r[2]),
+            "high": float(r[3]),
+            "low": float(r[4]),
+        }
+        for r in rows
+        if len(r) >= 5
+    ]
 
 
 def daily_to_weekly(dailies: list[dict]) -> list[dict]:
@@ -88,23 +107,41 @@ def fetch_weekly_tencent(secid: str, limit: int = 180) -> list[dict]:
     return rows
 
 
-def fetch_weekly_sina(secid: str, daily_limit: int = 800) -> list[dict]:
+def fetch_daily_tencent(secid: str, limit: int = 800) -> list[dict]:
     hq = _hq_symbol(secid)
-    url = _SINA_DAILY.format(symbol=hq, limit=daily_limit)
-    raw = http_get_text(url, referer="https://finance.sina.com.cn/")
-    dailies = json.loads(raw)
-    bars = []
-    for d in dailies:
-        bars.append(
-            {
-                "date": d["day"][:10],
-                "open": float(d["open"]),
-                "high": float(d["high"]),
-                "low": float(d["low"]),
-                "close": float(d["close"]),
-            }
-        )
-    weekly = daily_to_weekly(bars)
+    data = http_get_json(
+        _TENCENT_DAY.format(symbol=hq, limit=limit),
+        referer=f"https://gu.qq.com/{hq}",
+    )
+    rows = parse_tencent_daily(data, hq)
+    if not rows:
+        raise RuntimeError(f"tencent daily empty for {hq}")
+    return rows
+
+
+def fetch_daily_sina(secid: str, limit: int = 800) -> list[dict]:
+    hq = _hq_symbol(secid)
+    raw = http_get_text(
+        _SINA_DAILY.format(symbol=hq, limit=limit),
+        referer="https://finance.sina.com.cn/",
+    )
+    rows = [
+        {
+            "date": d["day"][:10],
+            "open": float(d["open"]),
+            "high": float(d["high"]),
+            "low": float(d["low"]),
+            "close": float(d["close"]),
+        }
+        for d in json.loads(raw)
+    ]
+    if not rows:
+        raise RuntimeError(f"sina daily empty for {hq}")
+    return rows
+
+
+def fetch_weekly_sina(secid: str, daily_limit: int = 800) -> list[dict]:
+    weekly = daily_to_weekly(fetch_daily_sina(secid, daily_limit))
     if not weekly:
         raise RuntimeError(f"sina weekly empty for {hq}")
     return weekly
@@ -151,3 +188,28 @@ def load_weekly_3y(secid: str) -> tuple[list[dict], str]:
         except Exception as exc:  # noqa: BLE001
             errors.append(f"{name}: {exc}")
     raise RuntimeError("weekly fetch failed: " + " | ".join(errors))
+
+
+def load_daily_3y(secid: str) -> tuple[list[dict], str]:
+    """Return roughly three years of daily bars with Tencent → Sina fallback."""
+    errors: list[str] = []
+    for name, fn in (("tencent", fetch_daily_tencent), ("sina", fetch_daily_sina)):
+        try:
+            bars = fn(secid)
+            cutoff = (datetime.now() - timedelta(days=365 * 3 + 14)).strftime("%Y-%m-%d")
+            bars = [b for b in bars if b["date"] >= cutoff]
+            if len(bars) < 300:
+                errors.append(f"{name}: only {len(bars)} bars")
+                continue
+            return bars, name
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{name}: {exc}")
+    raise RuntimeError("daily fetch failed: " + " | ".join(errors))
+
+
+def load_bars_3y(secid: str, timeframe: str) -> tuple[list[dict], str]:
+    if timeframe == "daily":
+        return load_daily_3y(secid)
+    if timeframe == "weekly":
+        return load_weekly_3y(secid)
+    raise ValueError("timeframe must be daily or weekly")

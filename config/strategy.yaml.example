@@ -1,0 +1,22 @@
+strategy:
+  quantile: 0.80
+  timeframe: weekly
+  range_pad: 0.02
+  dte_min: 15
+  dte_max: 60
+  expiry_count: 2
+  min_yield: 0.01
+  max_yield: 0.03
+  max_wing_steps: 6
+  symbols:
+    - "510050"
+    - "510300"
+server:
+  host: "127.0.0.1"
+  port: 8765
+dingtalk:
+  # 二选一：完整 webhook，或只填 access_token。
+  webhook: ""
+  access_token: ""
+  # 机器人开启“加签”安全设置时填写 SEC...；否则留空。
+  secret: ""

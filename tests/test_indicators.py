@@ -101,6 +101,29 @@ class TestRange(unittest.TestCase):
         self.assertLess(trade["lo"], closes[-1])
         self.assertGreater(trade["hi"], closes[-1])
 
+    def test_configurable_quantile_pad_and_daily_horizon(self):
+        closes, highs, lows = [], [], []
+        for i in range(180):
+            px = 3.0 + math.sin(i / 10) * 0.08 + i * 0.0005
+            closes.append(px)
+            highs.append(px * 1.006)
+            lows.append(px * 0.994)
+        fc = forecast_month_range(
+            closes,
+            highs,
+            lows,
+            hist_q=0.95,
+            range_pad=0.05,
+            timeframe="daily",
+            horizon_bars=30,
+        )
+        self.assertEqual(fc["timeframe"], "daily")
+        self.assertEqual(fc["horizon_bars"], 30)
+        self.assertEqual(fc["hist_4w"]["hist_q"], 0.95)
+        self.assertAlmostEqual(
+            fc["trade_range"]["lo"], fc["predicted_range"]["lo"] * 0.95
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

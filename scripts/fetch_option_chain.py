@@ -234,6 +234,28 @@ def pick_month_near_dte(
     return min(eligible, key=lambda x: abs(int(x["dte"]) - target_dte))
 
 
+def pick_expiries_in_window(
+    infos: list[dict[str, Any]],
+    min_dte: int = 15,
+    max_dte: int = 60,
+    count: int = 2,
+) -> list[dict[str, Any]]:
+    """Pick the nearest `count` expiries satisfying min_dte <= DTE <= max_dte."""
+    if min_dte > max_dte or count < 1:
+        raise ValueError("invalid expiry window")
+    eligible = [
+        dict(x)
+        for x in infos
+        if min_dte <= int(x.get("dte", -1)) <= max_dte
+    ]
+    eligible.sort(key=lambda x: int(x["dte"]))
+    if len(eligible) < count:
+        raise ValueError(
+            f"need {count} expiries with DTE {min_dte}-{max_dte}, got {len(eligible)}"
+        )
+    return eligible[:count]
+
+
 def list_month_infos(cate: str) -> list[dict[str, Any]]:
     months = list_months(cate)
     infos = []

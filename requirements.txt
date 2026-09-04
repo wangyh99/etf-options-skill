@@ -1,3 +1,6 @@
-# Optional: richer DataFrame workflows. Pipeline runs on Python stdlib only.
+Flask>=3.0,<4
+PyYAML>=6.0,<7
+
+# Optional: richer DataFrame workflows.
 # akshare>=1.14.0
 # pandas>=2.0.0
