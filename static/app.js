@@ -5,22 +5,25 @@ const $$ = (selector) => [...document.querySelectorAll(selector)];
 function setStatus(text, error = false) {
   const node = $("#status");
   node.textContent = text;
-  node.style.color = error ? "var(--warning)" : "";
+  node.classList.toggle("error", error);
+  node.classList.toggle("running", text === "运行中");
 }
 
 function setBusy(busy) {
   $$("button").forEach((button) => { button.disabled = busy; });
-  if (busy) setStatus("正在获取行情并计算");
+  if (busy) setStatus("运行中");
 }
 
 function paramsFromForm() {
   const minYield = Number($("#yield-min").value) / 100;
-  const maxYield = Number($("#yield-max").value) / 100;
   const dteMin = Number($("#dte-min").value);
   const dteMax = Number($("#dte-max").value);
-  if (minYield > maxYield) throw new Error("最低收益率不能大于最高收益率");
+  if (!(minYield >= 0.01 && minYield <= 0.03)) throw new Error("预期月均收益率须在 1%–3%");
   if (dteMin >= dteMax) throw new Error("最小 DTE 必须小于最大 DTE");
   return {
+    box_model: $("#box-model").value,
+    history_years: 10,
+    core_quantile: 0.60,
     quantile: Number($("#quantile").value) / 100,
     timeframe: $("#timeframe").value,
     range_pad: Number($("#range-pad").value),
@@ -28,13 +31,13 @@ function paramsFromForm() {
     dte_max: dteMax,
     expiry_count: 2,
     min_yield: minYield,
-    max_yield: maxYield,
     max_wing_steps: 6,
     symbols: ["510050", "510300"],
   };
 }
 
 function fillForm(params) {
+  $("#box-model").value = params.box_model || "asymmetric";
   $("#quantile").value = Math.round(params.quantile * 100);
   $("#quantile-value").value = `P${Math.round(params.quantile * 100)}`;
   $("#timeframe").value = params.timeframe;
@@ -42,7 +45,6 @@ function fillForm(params) {
   $("#dte-min").value = params.dte_min;
   $("#dte-max").value = params.dte_max;
   $("#yield-min").value = (params.min_yield * 100).toFixed(1);
-  $("#yield-max").value = (params.max_yield * 100).toFixed(1);
 }
 
 async function api(path, body) {
@@ -79,19 +81,21 @@ $$(".tab").forEach((tab) => {
     $$(".tab").forEach((item) => item.classList.remove("active"));
     tab.classList.add("active");
     state.strategy = tab.dataset.strategy;
-    $("#strategy-title").textContent =
-      state.strategy === "iron_condor" ? "铁鹰策略建议" : "宽跨策略建议";
-    $("#advice-output").className = "placeholder";
-    $("#advice-output").textContent = "点击“当前交易策略”获取建议";
+    $("#workspace-hint").textContent =
+      state.strategy === "iron_condor"
+        ? "铁鹰：每个到期日的预测带下方给出卖出/观望建议"
+        : "宽跨：每个到期日的预测带下方给出卖出/观望建议";
+    $("#workspace-output").className = "placeholder";
+    $("#workspace-output").textContent = "点击“预测交易带”或“当前交易策略”开始计算";
   });
 });
 
 $("#quantile").addEventListener("input", (event) => {
   $("#quantile-value").value = `P${event.target.value}`;
 });
-$("#forecast-button").addEventListener("click", () => run("/api/forecast", "#forecast-output"));
+$("#forecast-button").addEventListener("click", () => run("/api/forecast", "#workspace-output"));
 $("#advice-button").addEventListener("click", () =>
-  run("/api/advice", "#advice-output", { strategy: state.strategy })
+  run("/api/advice", "#workspace-output", { strategy: state.strategy })
 );
 $("#save-button").addEventListener("click", async () => {
   try {

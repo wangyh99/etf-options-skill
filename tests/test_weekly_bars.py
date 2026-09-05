@@ -41,3 +41,10 @@ class TestWeeklyParse(unittest.TestCase):
         self.assertEqual(w[0]["close"], 2.98)
         self.assertEqual(w[0]["high"], 3.2)
         self.assertEqual(w[0]["low"], 2.90)
+
+    def test_daily_to_weekly_sums_volume(self):
+        dailies = [
+            {"date": "2026-08-17", "open": 3, "high": 3.1, "low": 2.9, "close": 3, "volume": 10},
+            {"date": "2026-08-18", "open": 3, "high": 3.2, "low": 2.8, "close": 3.1, "volume": 20},
+        ]
+        self.assertEqual(daily_to_weekly(dailies)[0]["volume"], 30)

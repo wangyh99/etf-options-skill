@@ -76,6 +76,13 @@ class TestRange(unittest.TestCase):
         self.assertLess(lo, 2.87)
         self.assertGreater(hi, 3.11)
 
+    def test_expand_range_zero_and_one_percent(self):
+        lo, hi = expand_range(3.0, 4.0, 0.0)
+        self.assertEqual((lo, hi), (3.0, 4.0))
+        lo, hi = expand_range(3.0, 4.0, 0.01)
+        self.assertAlmostEqual(lo, 2.97)
+        self.assertAlmostEqual(hi, 4.04)
+
     def test_expand_rejects_bad(self):
         with self.assertRaises(ValueError):
             expand_range(3, 2, 0.02)

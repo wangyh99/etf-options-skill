@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
+from werkzeug.exceptions import HTTPException
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -66,6 +67,10 @@ def create_app(config_path: str | Path = DEFAULT_CONFIG_PATH) -> Flask:
     @app.errorhandler(ValueError)
     def bad_request(exc):
         return jsonify({"ok": False, "error": str(exc)}), 400
+
+    @app.errorhandler(HTTPException)
+    def http_error(exc):
+        return jsonify({"ok": False, "error": exc.description}), exc.code
 
     @app.errorhandler(Exception)
     def internal_error(exc):

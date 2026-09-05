@@ -22,7 +22,6 @@ from strategy_engine import (  # noqa: E402
 )
 
 MIN_YIELD = 0.01
-MAX_YIELD = 0.03
 RANGE_PAD = 0.02
 TARGET_DTE = 30
 
@@ -36,8 +35,8 @@ def format_report(report: dict, strategy_only: bool = False) -> str:
         "",
         f"- 时间：{report['as_of']}",
         f"- 参数：{params['timeframe']}线 P{params['quantile'] * 100:.0f}，"
-        f"交易带扩 ±{params['range_pad'] * 100:.0f}%，收益率 "
-        f"{params['min_yield'] * 100:.1f}%–{params['max_yield'] * 100:.1f}%",
+        f"交易带扩 ±{params['range_pad'] * 100:.0f}%，最低月均收益率 "
+        f"{params['min_yield'] * 100:.1f}%",
         "",
     ]
     for underlying in report.get("underlyings", []):
@@ -49,24 +48,57 @@ def format_report(report: dict, strategy_only: bool = False) -> str:
                 "",
             ])
             if not strategy_only:
-                lines.extend([
-                    f"- 预测区间：{fc['predicted_range']['lo']} – {fc['predicted_range']['hi']}",
-                    f"- 交易带：{fc['trade_range']['lo']} – {fc['trade_range']['hi']}",
-                    f"- 趋势：{fc['trend']}；历史 P{fc['hist_quantile'] * 100:.0f} "
-                    f"下行 {fc['hist_down_pct']}% / 上行 {fc['hist_up_pct']}%",
-                    "",
-                ])
+                if fc.get("model") == "asymmetric":
+                    reasons = "；".join(fc["state"]["reasons"])
+                    lines.extend([
+                        f"- 状态：**{fc['state']['label']}**（{reasons}）",
+                        f"- 风险箱体 P{fc['hist_quantile'] * 100:.0f}："
+                        f"{fc['risk_range']['lo']} – {fc['risk_range']['hi']}",
+                        f"- 无条件基线：{fc['baseline_range']['lo']} – {fc['baseline_range']['hi']}",
+                        f"- 最终扫描带：{fc['trade_range']['lo']} – {fc['trade_range']['hi']}",
+                        "",
+                    ])
+                else:
+                    lines.extend([
+                        f"- 预测区间：{fc['predicted_range']['lo']} – {fc['predicted_range']['hi']}",
+                        f"- 交易带：{fc['trade_range']['lo']} – {fc['trade_range']['hi']}",
+                        f"- 趋势：{fc['trend']}；历史 P{fc['hist_quantile'] * 100:.0f} "
+                        f"下行 {fc['hist_down_pct']}% / 上行 {fc['hist_up_pct']}%",
+                        "",
+                    ])
             if expiry.get("error"):
                 lines.extend([f"- 行情错误：{expiry['error']}", ""])
                 continue
             rec = expiry.get("recommended")
             if not rec:
-                lines.extend(["- 当前无满足收益率范围的结构，建议观望。", ""])
+                ref = expiry.get("reference")
+                context = (ref or {}).get("reference_context") or {}
+                reason = (
+                    "可用行权价未覆盖最终扫描带，并非收益率不足"
+                    if context.get("reason") == "strike_coverage"
+                    else "当前无满足最低月均收益率的结构"
+                )
+                lines.append(f"- **观望**：{reason}。")
+                if ref:
+                    lines.extend([
+                        f"- 参考最近档位：{ref['label']}",
+                        f"- 月均收益率 {ref['yield_pct']:.2f}%；最大亏损 {ref['max_loss_label']}",
+                    ])
+                    if context:
+                        lines.extend([
+                            f"- 认沽端向内偏差 {context['put_inward_gap_pct']:.2f}%；"
+                            f"认购端向内偏差 {context['call_inward_gap_pct']:.2f}%；"
+                            f"偏差风险 {context['risk_level']}",
+                            f"- 风控参考：仓位不超过常规 1/3；组合回购价达到 "
+                            f"{context['buyback_stop_1lot']:.0f} 元或标的触及任一卖出腿时止损；"
+                            "DTE ≤ 7 天退出。",
+                        ])
+                lines.append("")
                 continue
             lines.extend([
                 f"- 结构：**{rec['label']}**",
                 f"- 净权利金：{rec['premium_1lot']:.0f} 元；保证金：{rec['margin_1lot']:.0f} 元",
-                f"- 收益率：**{rec['yield_pct']:.2f}%**；盈亏平衡：{rec['be_dn']} – {rec['be_up']}",
+                f"- 月均收益率：**{rec['yield_pct']:.2f}%**；盈亏平衡：{rec['be_dn']} – {rec['be_up']}",
                 f"- 最大亏损：**{rec['max_loss_label']}**",
             ])
             if strategy == "short_strangle":
@@ -85,7 +117,6 @@ def run(
     symbols: list[str],
     target_dte: int = TARGET_DTE,
     min_yield: float = MIN_YIELD,
-    max_yield: float = MAX_YIELD,
     strategy: str = "iron_condor",
     **overrides,
 ) -> dict:
@@ -95,7 +126,6 @@ def run(
         "dte_min": max(15, target_dte - 15),
         "dte_max": min(60, target_dte + 30),
         "min_yield": min_yield,
-        "max_yield": max_yield,
         **overrides,
     }
     return advice_report(strategy, validate_strategy_params(params))
@@ -106,14 +136,17 @@ def main() -> int:
     parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
     parser.add_argument("--strategy", choices=("iron_condor", "short_strangle"), default="iron_condor")
     parser.add_argument("--symbols", default=None)
+    parser.add_argument("--box-model", choices=("baseline", "asymmetric"), default=None)
+    parser.add_argument("--history-years", type=int, default=None)
+    parser.add_argument("--core-quantile", type=float, default=None)
     parser.add_argument("--timeframe", choices=("daily", "weekly"), default=None)
     parser.add_argument("--quantile", type=float, default=None, help="0.80-0.99")
-    parser.add_argument("--range-pad", type=float, default=None, help="0.02-0.05")
+    parser.add_argument("--range-pad", type=float, default=None, help="0.00-0.05")
     parser.add_argument("--dte", type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--dte-min", type=int, default=None)
     parser.add_argument("--dte-max", type=int, default=None)
     parser.add_argument("--min-yield", type=float, default=None)
-    parser.add_argument("--max-yield", type=float, default=None)
+    parser.add_argument("--max-yield", type=float, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--forecast-only", action="store_true")
     parser.add_argument("--strategy-only", action="store_true")
     parser.add_argument("--format", choices=("markdown", "html", "json"), default="markdown")
@@ -125,13 +158,15 @@ def main() -> int:
     config = load_config(args.config)
     params = dict(config["strategy"])
     cli_values = {
+        "box_model": args.box_model,
+        "history_years": args.history_years,
+        "core_quantile": args.core_quantile,
         "timeframe": args.timeframe,
         "quantile": args.quantile,
         "range_pad": args.range_pad,
         "dte_min": args.dte_min,
         "dte_max": args.dte_max,
         "min_yield": args.min_yield,
-        "max_yield": args.max_yield,
     }
     params.update({key: value for key, value in cli_values.items() if value is not None})
     if args.dte is not None:

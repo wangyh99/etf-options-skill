@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 venv/
 data/chains/
+data/cache/
 data/short_strangle_advice.json
 data/short_strangle_advice.md
 data/iron_condor_advice.json

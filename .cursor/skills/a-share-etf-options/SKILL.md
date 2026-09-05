@@ -32,7 +32,8 @@ cp config/strategy.yaml.example config/strategy.yaml
 .venv/bin/python scripts/serve_web.py
 ```
 
-   Open `http://127.0.0.1:8765`. The page supports P80-P99, daily/weekly bars,
+   Open `http://127.0.0.1:8765`. The page supports a baseline/asymmetric box
+   selector, P80-P99 risk coverage, daily/weekly short-term indicators,
    2%-5% range padding, two expiries in DTE 15-60 and a 1%-3% yield band.
 
 2. For automation or DingTalk, use the CLI:
@@ -52,6 +53,10 @@ Use fields already computed in the report (`hints[]`). Do not invent new trade i
 - **High IV / rich premium**: prefer short-vol style hints (credit vertical) only when ATM IV is high *and* skew is not extreme.
 - **Low IV**: prefer long-vol (debit straddle/strangle or debit vertical) when ATM IV is low.
 - **Skew**: if put IV >> call IV near ATM → note downside demand; reverse for call-heavy skew.
+- **Asymmetric box**: use about 10 years of adjusted daily prices to compute
+  Pos252/756/1260, ATR-normalized moving-average distance and a rule-based
+  breakout/reversion regime. Display P60 core, P80-P99 risk and unconditional
+  baseline boxes; option strikes must use only the padded risk box.
 - Always list: legs, approx debit/credit from mid, max loss/gain sketch, and why (IV / skew / ATM).
 - Iron condor reports numeric maximum loss. Short strangle must report upside
   maximum loss as unbounded; exchange margin is never a substitute for maximum loss.

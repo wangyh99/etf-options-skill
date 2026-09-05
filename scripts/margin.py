@@ -63,12 +63,14 @@ def short_strangle_combo_margin(
 
 
 def meets_yield(yield_pct: float, min_yield: float = 0.015) -> bool:
-    return yield_pct > min_yield
+    return yield_pct + 1e-12 >= min_yield
 
 
-def meets_yield_band(yield_pct: float, min_yield: float = 0.015, max_yield: float = 0.022) -> bool:
-    epsilon = 1e-12
-    return min_yield - epsilon <= yield_pct <= max_yield + epsilon
+def monthly_yield(hold_yield: float, dte: int, month_days: int = 30) -> float:
+    """Convert holding-period yield into a 30-day average yield: hold_yield * 30 / DTE."""
+    if dte <= 0:
+        raise ValueError("dte must be positive")
+    return hold_yield * month_days / dte
 
 
 def short_strangle_risk_profile(

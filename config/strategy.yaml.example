@@ -1,12 +1,15 @@
 strategy:
+  # baseline = 原波动率基线；asymmetric = 长期位置+状态规则箱体
+  box_model: asymmetric
+  history_years: 10
+  core_quantile: 0.60
   quantile: 0.80
   timeframe: weekly
   range_pad: 0.02
   dte_min: 15
   dte_max: 60
   expiry_count: 2
-  min_yield: 0.01
-  max_yield: 0.03
+  min_yield: 0.01  # 预期月均收益率下限（持有到期收益率 × 30 / DTE）
   max_wing_steps: 6
   symbols:
     - "510050"

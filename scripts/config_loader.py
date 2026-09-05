@@ -16,6 +16,9 @@ EXAMPLE_CONFIG_PATH = ROOT / "config" / "strategy.yaml.example"
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "strategy": {
+        "box_model": "asymmetric",
+        "history_years": 10,
+        "core_quantile": 0.60,
         "quantile": 0.80,
         "timeframe": "weekly",
         "range_pad": 0.02,
@@ -23,7 +26,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "dte_max": 60,
         "expiry_count": 2,
         "min_yield": 0.01,
-        "max_yield": 0.03,
         "max_wing_steps": 6,
         "symbols": ["510050", "510300"],
     },
@@ -47,27 +49,35 @@ def validate_strategy_params(params: dict[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(DEFAULT_CONFIG["strategy"])
     out.update(params or {})
     out["quantile"] = float(out["quantile"])
+    out["core_quantile"] = float(out["core_quantile"])
     out["range_pad"] = float(out["range_pad"])
     out["min_yield"] = float(out["min_yield"])
-    out["max_yield"] = float(out["max_yield"])
+    out.pop("max_yield", None)
     out["dte_min"] = int(out["dte_min"])
     out["dte_max"] = int(out["dte_max"])
     out["expiry_count"] = int(out["expiry_count"])
     out["max_wing_steps"] = int(out["max_wing_steps"])
+    out["history_years"] = int(out["history_years"])
+    if out["box_model"] not in ("baseline", "asymmetric"):
+        raise ValueError("box_model must be baseline or asymmetric")
+    if not 5 <= out["history_years"] <= 15:
+        raise ValueError("history_years must be between 5 and 15")
+    if not 0.55 <= out["core_quantile"] <= 0.70:
+        raise ValueError("core_quantile must be between 0.55 and 0.70")
     if not 0.80 <= out["quantile"] <= 0.99:
         raise ValueError("quantile must be between 0.80 and 0.99")
+    if out["core_quantile"] >= out["quantile"]:
+        raise ValueError("core_quantile must be below quantile")
     if out["timeframe"] not in ("daily", "weekly"):
         raise ValueError("timeframe must be daily or weekly")
-    if not 0.02 <= out["range_pad"] <= 0.05:
-        raise ValueError("range_pad must be between 0.02 and 0.05")
+    if not 0.0 <= out["range_pad"] <= 0.05:
+        raise ValueError("range_pad must be between 0.00 and 0.05")
     if out["dte_min"] < 14 or out["dte_max"] > 61 or out["dte_min"] >= out["dte_max"]:
         raise ValueError("DTE window must satisfy 14 <= min < max <= 61")
     if out["expiry_count"] != 2:
         raise ValueError("expiry_count must be 2")
     if not 0.01 <= out["min_yield"] <= 0.03:
-        raise ValueError("min_yield must be between 0.01 and 0.03")
-    if not 0.01 <= out["max_yield"] <= 0.03 or out["min_yield"] > out["max_yield"]:
-        raise ValueError("max_yield must be between min_yield and 0.03")
+        raise ValueError("min_yield must be between 0.01 and 0.03 (monthly)")
     if not 1 <= out["max_wing_steps"] <= 12:
         raise ValueError("max_wing_steps must be between 1 and 12")
     symbols = out.get("symbols") or []

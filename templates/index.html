@@ -14,7 +14,6 @@
         <h1>双策略交易控制台</h1>
         <p>510050 · 510300 · 两个 DTE 15–60 到期日</p>
       </div>
-      <span id="status">正在加载参数</span>
     </header>
 
     <nav class="tabs" aria-label="策略选择">
@@ -28,20 +27,29 @@
         <p>参数同时用于两个 ETF 和两个目标到期日</p>
       </div>
       <form id="params-form">
-        <label>交易带预测概率
+        <label>风险箱体覆盖率
           <div class="range-line">
             <input id="quantile" type="range" min="80" max="99" step="1">
             <output id="quantile-value"></output>
           </div>
         </label>
-        <label>K线周期
+        <label>短周期指标
           <select id="timeframe">
             <option value="weekly">周线</option>
             <option value="daily">日线</option>
           </select>
         </label>
+        <label>箱体模型
+          <select id="box-model">
+            <option value="asymmetric">非对称（长期位置+状态）</option>
+            <option value="baseline">基线（历史分位+波动率）</option>
+          </select>
+          <small>位置特征固定使用约10年前复权日线</small>
+        </label>
         <label>交易带上下扩大
           <select id="range-pad">
+            <option value="0.00">0%</option>
+            <option value="0.01">1%</option>
             <option value="0.02">2%</option>
             <option value="0.03">3%</option>
             <option value="0.04">4%</option>
@@ -57,34 +65,30 @@
           <small>区间内按 DTE 升序选前两个到期日</small>
         </fieldset>
         <fieldset>
-          <legend>预期收益率</legend>
-          <div class="pair">
-            <label>最小<input id="yield-min" type="number" min="1" max="3" step="0.1">%</label>
-            <label>最大<input id="yield-max" type="number" min="1" max="3" step="0.1">%</label>
-          </div>
+          <legend>预期月均收益率</legend>
+          <label>不低于
+            <div class="range-line">
+              <input id="yield-min" type="number" min="1" max="3" step="0.1">
+              <span class="unit">%</span>
+            </div>
+          </label>
+          <small>持有到期收益率 × 30 / DTE；在达标结构中选卖出档最接近扫描带两端的组合</small>
         </fieldset>
       </form>
       <div class="actions">
         <button id="forecast-button" class="secondary">预测交易带</button>
         <button id="advice-button" class="primary">当前交易策略</button>
         <button id="save-button" class="ghost">保存当前参数</button>
+        <span id="status" role="status" aria-live="polite">正在加载参数</span>
       </div>
     </section>
 
     <section class="output-section">
       <div class="section-title">
-        <h2>交易带预测</h2>
-        <p>历史分位、波动率和技术指标合成</p>
+        <h2>交易带与策略</h2>
+        <p id="workspace-hint">每个到期日先显示预测带；点“当前交易策略”后在同一到期日下方给出建议</p>
       </div>
-      <div id="forecast-output" class="placeholder">点击“预测交易带”开始计算</div>
-    </section>
-
-    <section class="output-section">
-      <div class="section-title">
-        <h2 id="strategy-title">铁鹰策略建议</h2>
-        <p>以实时期权 mid 估算，实际成交与保证金以券商为准</p>
-      </div>
-      <div id="advice-output" class="placeholder">点击“当前交易策略”获取建议</div>
+      <div id="workspace-output" class="placeholder">点击“预测交易带”或“当前交易策略”开始计算</div>
     </section>
   </main>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
