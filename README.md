@@ -1,19 +1,20 @@
 # A股股指 ETF 期权工具
 
-面向 **上证50ETF（510050）**、**沪深300ETF（510300）** 的本地命令行工具：拉取期权链、用近 3 年周线估算未来约一个月波动区间，并给出铁鹰（Iron Condor）建议。
+面向 **上证50ETF（510050）**、**沪深300ETF（510300）** 的本地策略系统：通过 HTML5 控制台或 CLI，用约 10 年前复权日线构建非对称箱体，并给出铁鹰（Iron Condor）与卖出宽跨建议。
 
-仅需 Python 3.11+ 标准库，无需安装 akshare / pandas。
+需要 Python 3.11+、Flask 和 PyYAML，无需 akshare / pandas。
 
 ## 功能
 
 | 功能 | 脚本 | 说明 |
 |------|------|------|
-| **铁鹰即时建议** | `scripts/advise_short_strangle.py` | 周线 MACD / KDJ / RSI / BOLL，历史 4 周 **P80** 定月区间，再扩 ±2%；约 30 天到期；净权利金/保证金落在 **1.5%–2.2%** |
+| **双策略控制台** | `scripts/serve_web.py` | 铁鹰/宽跨 Tab，可调 P80–P99、日/周线、扩幅、DTE、收益率并保存 YAML |
+| **策略 CLI** | `scripts/advise_short_strangle.py` | 两个 DTE 15–60 到期日；Markdown/JSON/HTML；可选钉钉推送 |
 | **期权日报** | `scripts/run_daily.py` | 拉取近月期权链、ATM IV、偏度，并按规则提示跨式 / 垂直价差 |
 | **周线区间测算** | `scripts/weekly_tech_forecast.py` | 单独输出周线指标与月波动带（供对照） |
 | **期权链拉取** | `scripts/fetch_option_chain.py` | 新浪财经公开接口：标的价、到期月、各档认购/认沽 mid 与 IV |
 
-数据源：腾讯财经周线（主，东方财富周线目前会直接断连）、新浪财经日线回退、新浪期权与标的行情。
+数据源：腾讯前复权日线、东方财富 `fqt=1` 前复权日线回退、新浪期权与实时标的行情。非对称模型不会使用未复权历史代替复权数据。
 
 ## 环境
 
@@ -21,42 +22,87 @@
 git clone https://github.com/wangyh99/etf-options-skill.git
 cd etf-options-skill
 python3 --version   # 建议 3.11+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-无需 `pip install`。若本机 Python 缺系统 CA 证书，脚本会回退到不校验证书（仅用于公开行情）。
-
-## 铁鹰建议（主功能）
+首次运行前复制配置：
 
 ```bash
-python3 scripts/advise_short_strangle.py
+cp config/strategy.yaml.example config/strategy.yaml
+```
+
+真实配置已被 `.gitignore` 排除，不会提交钉钉凭据。
+
+## HTML5 控制台
+
+```bash
+.venv/bin/python scripts/serve_web.py
+```
+
+浏览器打开 <http://127.0.0.1:8765>。页面包含“铁鹰策略 / 宽跨策略”两个 Tab：
+
+- **预测交易带**：展示两个 ETF、两个目标到期日的预测区间和交易带。
+- **当前交易策略**：展示当前 Tab 的建议、保证金、收益率和最大亏损。
+- **保存当前参数**：写入 `config/strategy.yaml`，下次启动自动加载。
+
+## 策略 CLI
+
+```bash
+.venv/bin/python scripts/advise_short_strangle.py --strategy iron_condor
+.venv/bin/python scripts/advise_short_strangle.py --strategy short_strangle
 ```
 
 常用参数：
 
 ```bash
-python3 scripts/advise_short_strangle.py --symbols 510050,510300 --dte 30 --min-yield 0.015 --max-yield 0.022
+.venv/bin/python scripts/advise_short_strangle.py \
+  --strategy iron_condor --timeframe weekly --quantile 0.90 --range-pad 0.03 \
+  --dte-min 15 --dte-max 60 --min-yield 0.01 --max-yield 0.03
+
+# 只输出策略部分的独立 HTML5 文件
+.venv/bin/python scripts/advise_short_strangle.py \
+  --strategy short_strangle --strategy-only --format html \
+  --out data/strategy_advice.html
+
+# 生成报告后向钉钉发送 Markdown 摘要
+.venv/bin/python scripts/advise_short_strangle.py \
+  --strategy iron_condor --strategy-only --format html \
+  --out data/strategy_advice.html --send-dingtalk
 ```
 
 | 参数 | 默认 | 含义 |
 |------|------|------|
 | `--symbols` | `510050,510300` | 标的代码，逗号分隔 |
-| `--dte` | `30` | 目标剩余天数，自动选最接近的到期月（跳过过短合约） |
-| `--min-yield` | `0.015` | 最低收益率：净权利金 / 组合保证金 |
-| `--max-yield` | `0.022` | 最高收益率（超过则不入选，改选更宽翼） |
-| `--out` | `data/iron_condor_advice.md` | Markdown 输出路径 |
+| `--strategy` | `iron_condor` | `iron_condor` 或 `short_strangle` |
+| `--box-model` | YAML | `asymmetric` 非对称箱体或 `baseline` 原基线 |
+| `--history-years` | YAML | 长周期位置样本，默认 10 年 |
+| `--core-quantile` | YAML | 核心箱体覆盖率，默认 0.60 |
+| `--timeframe` | YAML | `daily` 或 `weekly` |
+| `--quantile` | YAML | 历史分位 0.80–0.99 |
+| `--range-pad` | YAML | 交易带上下扩幅 0.02–0.05 |
+| `--dte-min/--dte-max` | YAML | 到期窗口 15–60，选最近两个到期日 |
+| `--min-yield/--max-yield` | YAML | 收益率范围 0.01–0.03 |
+| `--strategy-only` | 关闭 | 隐藏预测说明，仅输出当前策略 |
+| `--format` | `markdown` | `markdown`、`json` 或 `html` |
+| `--send-dingtalk` | 关闭 | 使用 YAML 中的机器人配置发送摘要 |
 | `--json` | 无 | 可选，同时再写一份 JSON |
 
 ### 计算逻辑
 
-1. 取标的近 **3 年周线**，计算 MACD、KDJ（JDK）、RSI、BOLL，并结合历史 4 周涨跌 **P80** 分位、周波动折算月 σ，得到**预测月区间**。
-2. 在该区间上 **上下各扩大 2%**，作为交易带（卖出认沽行权价 ≤ 下沿，卖出认购行权价 ≥ 上沿）。
-3. 选取 DTE 最接近 30 天的合约月，在交易带外卖出宽跨，并再买更虚值的认沽/认购翼，组成铁鹰。
-4. 保证金按上交所两个垂直价差估算：  
+1. 取约 **10 年前复权日线**，计算 Pos252/756/1260、ATR 标准化均线距离、周线 MACD、相对成交量和布林带宽状态。
+2. 对每个到期日直接统计未来 H 日路径最低/最高价的分位数；按价格位置与均线方向取条件样本，再由“高位突破/高位回归/低位支撑/低位续跌/低波挤压/中位震荡”规则非对称调整。
+3. 同时输出核心箱体 P60、风险箱体 P80–P99 和无条件基线；只用风险箱体再扩 2%–5% 后的边界扫描行权价。
+4. 筛选 DTE 15–60 的最近两个到期日；卖沽不高于最终风险下沿，卖购不低于最终风险上沿。
+5. 保证金按上交所两个垂直价差估算：
    `(认沽行权价差 + 认购行权价差) × 合约单位`  
    合约单位 10000。到期最多一边穿仓，经济最大亏损 = `max(两侧宽度)×10000 − 净权利金`。券商可能上浮。
-5. 只输出收益率落在 **1.5%–2.2%** 的结构，优先靠近 1.85%；若无达标档位则提示观望，并列出最接近区间的档位。
+6. 宽跨按 KKS 组合保证金估算。其认购侧亏损理论上无上限，报告会显示“最大亏损：理论无限”及情景损益，绝不把保证金当最大亏损。
 
-终端打印 Markdown，并写入 `data/iron_condor_advice.md`。需要机器可读结果时加 `--json data/iron_condor_advice.json`。
+## 钉钉配置
+
+`config/strategy.yaml` 支持完整 `webhook`，或单独填写 `access_token`；机器人开启加签时再填写 `secret`。钉钉机器人不支持任意 HTML，因此本地保存完整 HTML5，群内发送由同一报告生成的 Markdown 摘要。
 
 ## 期权日报
 
@@ -74,15 +120,20 @@ python3 scripts/run_daily.py --symbols 510050 --month 202609
 ## 测试
 
 ```bash
-python3 -m unittest discover -s tests -v
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
-覆盖指标、区间扩 2%、上交所保证金 / 收益率、到期月选择、铁鹰筛选。不依赖网络。
+覆盖动态预测、双到期、双策略、风险披露、YAML、HTML 转义、Flask API 和钉钉签名。不依赖网络。
 
 ## 仓库结构
 
 ```
-scripts/advise_short_strangle.py   # 即时铁鹰建议
+scripts/serve_web.py               # Flask HTML5 控制台
+scripts/advise_short_strangle.py   # 双策略 CLI
+scripts/strategy_engine.py         # 预测与策略编排
+scripts/report_html.py             # HTML5/钉钉报告
+scripts/config_loader.py           # YAML 配置
+scripts/dingtalk.py                # 钉钉机器人
 scripts/indicators.py              # MACD / KDJ / RSI / BOLL 与月区间
 scripts/margin.py                  # 义务仓、KKS 与铁鹰保证金
 scripts/run_daily.py               # 日报入口
@@ -100,4 +151,4 @@ automations/daily-etf-options.md   # 交易日定时任务草稿
 
 ## 说明
 
-本工具仅供研究与学习，**不构成投资建议**。铁鹰亏损有上限，但仍可能在短时间内接近最大亏损；保证金为交易所公式估算，下单前请以券商柜台为准。
+本工具仅供研究与学习，**不构成投资建议**。铁鹰亏损有上限，但仍可能在短时间内接近最大亏损；裸卖宽跨认购侧亏损理论上无上限。保证金为交易所公式估算，下单前请以券商柜台为准。

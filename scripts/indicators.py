@@ -209,10 +209,23 @@ def forecast_month_range(
     highs: list[float],
     lows: list[float],
     hist_q: float = HIST_RANGE_Q,
+    range_pad: float = 0.02,
+    timeframe: str = "weekly",
+    horizon_bars: int | None = None,
 ) -> dict:
-    """Blend 3y weekly hist 4-week range (default P80), vol, MACD/RSI/KDJ/BOLL into a 1-month band."""
-    if len(closes) < 80:
-        raise ValueError(f"need >=80 weekly bars, got {len(closes)}")
+    """Blend historical forward moves, volatility and technicals into a target-horizon band."""
+    if timeframe not in ("daily", "weekly"):
+        raise ValueError("timeframe must be daily or weekly")
+    if not 0.0 < hist_q < 1.0:
+        raise ValueError("hist_q must be between 0 and 1")
+    if not 0.0 <= range_pad < 1.0:
+        raise ValueError("range_pad must be between 0 and 1")
+    min_bars = 120 if timeframe == "daily" else 80
+    if len(closes) < min_bars:
+        raise ValueError(f"need >={min_bars} {timeframe} bars, got {len(closes)}")
+    horizon = int(horizon_bars or (20 if timeframe == "daily" else 4))
+    if horizon < 1 or horizon >= len(closes):
+        raise ValueError("invalid forecast horizon")
 
     dif, dea, hist = macd(closes)
     rsi14 = rsi(closes)
@@ -224,14 +237,15 @@ def forecast_month_range(
     rets = [math.log(closes[i] / closes[i - 1]) for i in range(1, len(closes))]
     mean = sum(rets) / len(rets)
     var = sum((x - mean) ** 2 for x in rets) / (len(rets) - 1)
-    weekly_vol = math.sqrt(var)
-    ann_vol = weekly_vol * math.sqrt(52)
-    m1_sigma = weekly_vol * math.sqrt(4) * 100
+    bar_vol = math.sqrt(var)
+    annual_periods = 252 if timeframe == "daily" else 52
+    ann_vol = bar_vol * math.sqrt(annual_periods)
+    horizon_sigma = bar_vol * math.sqrt(horizon) * 100
 
     fwd_up, fwd_dn, fwd_rng = [], [], []
-    for i in range(len(closes) - 4):
-        hi = max(highs[i + 1 : i + 5])
-        lo = min(lows[i + 1 : i + 5])
+    for i in range(len(closes) - horizon):
+        hi = max(highs[i + 1 : i + 1 + horizon])
+        lo = min(lows[i + 1 : i + 1 + horizon])
         fwd_up.append((hi - closes[i]) / closes[i] * 100)
         fwd_dn.append((closes[i] - lo) / closes[i] * 100)
         fwd_rng.append((hi - lo) / closes[i] * 100)
@@ -259,20 +273,20 @@ def forecast_month_range(
         elif pct_b > 0.8:
             bias -= 0.25
 
-    # Scale weekly BOLL(20) half-width to a ~4-week horizon
+    # Scale BOLL(20) half-width to the requested horizon.
     boll_half = 0.0
     if bl.get("width_pct"):
-        boll_half = bl["width_pct"] / 2 * math.sqrt(4 / 20)
+        boll_half = bl["width_pct"] / 2 * math.sqrt(horizon / 20)
 
-    dn_use = max(dn_q or 0, m1_sigma * 0.85, boll_half * 0.8)
-    up_use = max(up_q or 0, m1_sigma * 0.85, boll_half * 0.8)
+    dn_use = max(dn_q or 0, horizon_sigma * 0.85, boll_half * 0.8)
+    up_use = max(up_q or 0, horizon_sigma * 0.85, boll_half * 0.8)
     likely_lo = spot * (1 - dn_use / 100)
     likely_hi = spot * (1 + up_use / 100)
     midp = (likely_lo + likely_hi) / 2 * (1 + bias / 100)
     half = (likely_hi - likely_lo) / 2
     likely_lo, likely_hi = midp - half, midp + half
 
-    exp_lo, exp_hi = expand_range(likely_lo, likely_hi, 0.02)
+    exp_lo, exp_hi = expand_range(likely_lo, likely_hi, range_pad)
 
     return {
         "spot": spot,
@@ -285,10 +299,14 @@ def forecast_month_range(
         "kdj": {"k": kk[i], "d": dd[i], "j": jj[i], "zone": kdj_zone},
         "boll": bl,
         "ann_vol_pct": ann_vol * 100,
-        "month_1sigma_pct": m1_sigma,
+        "month_1sigma_pct": horizon_sigma,
+        "horizon_sigma_pct": horizon_sigma,
+        "timeframe": timeframe,
+        "horizon_bars": horizon,
         "hist_4w": {
             "n": len(fwd_up),
             "hist_q": hist_q,
+            "horizon_bars": horizon,
             "up_q": up_q,
             "dn_q": dn_q,
             "up_p80": up80,
@@ -296,5 +314,5 @@ def forecast_month_range(
             "range_p80": quantile(fwd_rng, 0.8),
         },
         "predicted_range": {"lo": likely_lo, "hi": likely_hi},
-        "trade_range": {"lo": exp_lo, "hi": exp_hi, "pad": 0.02},
+        "trade_range": {"lo": exp_lo, "hi": exp_hi, "pad": range_pad},
     }

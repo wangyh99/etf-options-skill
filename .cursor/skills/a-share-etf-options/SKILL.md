@@ -15,29 +15,36 @@ description: >-
 |------|--------|
 | Underlyings | `510050` (上证50ETF), `510300` (沪深300ETF) |
 | Data source | Sina Finance public APIs via `scripts/fetch_option_chain.py` (stdlib; akshare optional) |
-| Strategies | Iron condor (1.5%–2.2% yield band), ATM straddle/strangle hints, IV skew, vertical spreads |
-| Delivery | Run scripts → write `data/latest_report.json` + `data/canvas_payload.json` → render Canvas + short chat summary |
+| Strategies | Configurable iron condor and short strangle, ATM hints, IV skew, vertical spreads |
+| Delivery | Flask HTML5 console, CLI HTML/JSON/Markdown, optional DingTalk summary |
 | Schedule | Trading-day cron via Cursor Automation (weekdays 15:10) or `scripts/cron_local.sh` |
 
 Not investment advice. Always include the disclaimer in outputs.
 
 ## Workflow
 
-1. From repo root, run the daily pipeline:
+1. Install dependencies and start the interactive console:
 
 ```bash
-python3 scripts/run_daily.py
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cp config/strategy.yaml.example config/strategy.yaml
+.venv/bin/python scripts/serve_web.py
 ```
 
-   Optional flags: `--symbols 510050,510300` `--month YYYYMM`
+   Open `http://127.0.0.1:8765`. The page supports a baseline/asymmetric box
+   selector, P80-P99 risk coverage, daily/weekly short-term indicators,
+   2%-5% range padding, two expiries in DTE 15-60 and a 1%-3% yield band.
 
-2. Read `data/latest_report.json` (and `data/canvas_payload.json` for Canvas).
+2. For automation or DingTalk, use the CLI:
 
-3. Present results:
-   - **Primary**: create/update Canvas `etf-options-daily.canvas.tsx` under the workspace `canvases/` directory, embedding `canvas_payload.json` inline (no `fetch()`).
-   - **Chat**: 5–8 line summary — spot, nearest expiry, ATM IV, skew signal, top 1–3 strategy hints.
+```bash
+.venv/bin/python scripts/advise_short_strangle.py \
+  --strategy iron_condor --strategy-only --format html \
+  --out data/strategy_advice.html --send-dingtalk
+```
 
-4. If market data fetch fails, report the error plainly; do not invent prices.
+3. If market data fetch fails, report the error plainly; do not invent prices.
 
 ## Strategy rules (deterministic)
 
@@ -46,7 +53,13 @@ Use fields already computed in the report (`hints[]`). Do not invent new trade i
 - **High IV / rich premium**: prefer short-vol style hints (credit vertical) only when ATM IV is high *and* skew is not extreme.
 - **Low IV**: prefer long-vol (debit straddle/strangle or debit vertical) when ATM IV is low.
 - **Skew**: if put IV >> call IV near ATM → note downside demand; reverse for call-heavy skew.
+- **Asymmetric box**: use about 10 years of adjusted daily prices to compute
+  Pos252/756/1260, ATR-normalized moving-average distance and a rule-based
+  breakout/reversion regime. Display P60 core, P80-P99 risk and unconditional
+  baseline boxes; option strikes must use only the padded risk box.
 - Always list: legs, approx debit/credit from mid, max loss/gain sketch, and why (IV / skew / ATM).
+- Iron condor reports numeric maximum loss. Short strangle must report upside
+  maximum loss as unbounded; exchange margin is never a substitute for maximum loss.
 
 ## Output checklist
 
@@ -61,6 +74,9 @@ Use fields already computed in the report (`hints[]`). Do not invent new trade i
 
 - Pipeline: [scripts/run_daily.py](../../../scripts/run_daily.py)
 - Iron-condor advice: [scripts/advise_short_strangle.py](../../../scripts/advise_short_strangle.py)
+- Web console: [scripts/serve_web.py](../../../scripts/serve_web.py)
+- Strategy engine: [scripts/strategy_engine.py](../../../scripts/strategy_engine.py)
+- Config example: [config/strategy.yaml.example](../../../config/strategy.yaml.example)
 - Fetch: [scripts/fetch_option_chain.py](../../../scripts/fetch_option_chain.py)
 - Strategy: [scripts/strategy_hints.py](../../../scripts/strategy_hints.py)
 - Automation prompt: [automations/daily-etf-options.md](../../../automations/daily-etf-options.md)

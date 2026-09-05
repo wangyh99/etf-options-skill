@@ -12,7 +12,7 @@ from margin import (  # noqa: E402
     call_short_margin,
     iron_condor_margin,
     meets_yield,
-    meets_yield_band,
+    monthly_yield,
     put_short_margin,
     short_strangle_combo_margin,
 )
@@ -59,7 +59,7 @@ class TestComboAndYield(unittest.TestCase):
         # Construct inputs that produce equal standalone margins is hard;
         # instead verify yield filter thresholds.
         self.assertTrue(meets_yield(0.016, 0.015))
-        self.assertFalse(meets_yield(0.015, 0.015))
+        self.assertTrue(meets_yield(0.015, 0.015))
         self.assertFalse(meets_yield(0.01, 0.015))
 
     def test_strangle_requires_call_above_put(self):
@@ -83,11 +83,14 @@ class TestIronCondor(unittest.TestCase):
         with self.assertRaises(ValueError):
             iron_condor_margin(2.75, 2.65, 3.30, 3.50, 0.01, 0.02, 0.01, 0.02)
 
-    def test_yield_band(self):
-        self.assertTrue(meets_yield_band(0.015, 0.015, 0.022))
-        self.assertTrue(meets_yield_band(0.022, 0.015, 0.022))
-        self.assertFalse(meets_yield_band(0.0149, 0.015, 0.022))
-        self.assertFalse(meets_yield_band(0.023, 0.015, 0.022))
+    def test_min_yield_floor(self):
+        self.assertTrue(meets_yield(0.015, 0.015))
+        self.assertTrue(meets_yield(0.04, 0.015))
+        self.assertFalse(meets_yield(0.0149, 0.015))
+
+    def test_monthly_yield_is_hold_times_30_over_dte(self):
+        self.assertAlmostEqual(monthly_yield(0.053, 53), 0.053 * 30 / 53)
+        self.assertAlmostEqual(monthly_yield(0.018, 30), 0.018)
 
 
 if __name__ == "__main__":

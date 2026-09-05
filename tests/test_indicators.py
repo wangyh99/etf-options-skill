@@ -76,6 +76,13 @@ class TestRange(unittest.TestCase):
         self.assertLess(lo, 2.87)
         self.assertGreater(hi, 3.11)
 
+    def test_expand_range_zero_and_one_percent(self):
+        lo, hi = expand_range(3.0, 4.0, 0.0)
+        self.assertEqual((lo, hi), (3.0, 4.0))
+        lo, hi = expand_range(3.0, 4.0, 0.01)
+        self.assertAlmostEqual(lo, 2.97)
+        self.assertAlmostEqual(hi, 4.04)
+
     def test_expand_rejects_bad(self):
         with self.assertRaises(ValueError):
             expand_range(3, 2, 0.02)
@@ -100,6 +107,29 @@ class TestRange(unittest.TestCase):
         self.assertAlmostEqual(trade["hi"], pred["hi"] * 1.02, places=6)
         self.assertLess(trade["lo"], closes[-1])
         self.assertGreater(trade["hi"], closes[-1])
+
+    def test_configurable_quantile_pad_and_daily_horizon(self):
+        closes, highs, lows = [], [], []
+        for i in range(180):
+            px = 3.0 + math.sin(i / 10) * 0.08 + i * 0.0005
+            closes.append(px)
+            highs.append(px * 1.006)
+            lows.append(px * 0.994)
+        fc = forecast_month_range(
+            closes,
+            highs,
+            lows,
+            hist_q=0.95,
+            range_pad=0.05,
+            timeframe="daily",
+            horizon_bars=30,
+        )
+        self.assertEqual(fc["timeframe"], "daily")
+        self.assertEqual(fc["horizon_bars"], 30)
+        self.assertEqual(fc["hist_4w"]["hist_q"], 0.95)
+        self.assertAlmostEqual(
+            fc["trade_range"]["lo"], fc["predicted_range"]["lo"] * 0.95
+        )
 
 
 if __name__ == "__main__":
